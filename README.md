@@ -1,6 +1,6 @@
 # TPAW
 **Manuscript Title:**
-TPAW: a tile-based parallel watershed delineation algorithm for massive digital elevation models across distributed and shared-memory architectures
+A scalable tile-based parallel watershed delineation algorithm for massive digital elevation models for distributed-memory architectures
 
 **Authors:**
 Guiyun Zhou, Tao Zhou, Maoqiang Jing, Suhua Fu, Jiayun Lin, Jie Wen, Yi Yuan
