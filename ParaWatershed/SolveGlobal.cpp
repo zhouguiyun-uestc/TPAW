@@ -1,4 +1,4 @@
-#include "SolveGlobal.h"
+﻿#include "SolveGlobal.h"
 
 void SolveGlobal::computeTileDimension(const Cell& gridCell, int& height, int& width)
 {
@@ -37,7 +37,12 @@ void SolveGlobal::solve()
 				else
 					break;
 
-			} while (moveToDownstreamGlobalCell(gridCell, curCell));
+				if (!moveToDownstreamGlobalCell(gridCell, curCell)) {
+					id = BorderCellInfo::UNLABELLED_OUTLET;
+					break;
+				}
+
+			} while (true);
 
 			//
 			if (id == no_data_value) id = BorderCellInfo::UNLABELLED_OUTLET;

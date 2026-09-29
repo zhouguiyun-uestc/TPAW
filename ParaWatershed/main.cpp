@@ -1,4 +1,4 @@
-#include "tool.h"
+﻿#include "tool.h"
 #include "SolveLocal.h"
 #include <iostream>
 #include <Grid/io_gdal.h>
@@ -35,10 +35,10 @@ int main(int argc, char* argv[])
 		Example Usage 4: ParaWatershed diff  grid1.tif grid2.tif diff.tif
 				compute difference grid of grid1 and grid2
 
-		Example Usage 5: ParaWatershed OpenMP 8 pathToInputFlowDirectionFolder pathToOutputWatershedFolder 
-				use 8 OpenMP threads for computing watersheds given tiled flow direction folder
+		Example Usage 5: ParaWatershed OpenMP 8 pathToInputFlowDirectionFolder pathToOutputWatershedFolder [@evict|@retain](optional)
+				use 8 OpenMP threads for computing watersheds given tiled flow direction folder 
 
-		Example Usage 6: mpiexec -np 3 ParaWatershed MPI pathToInputFlowDirectionFolder pathToOutputWatershedFolder
+		Example Usage 6: mpiexec -np 3 ParaWatershed MPI pathToInputFlowDirectionFolder pathToOutputWatershedFolder [@evict|@retain](optional)
 				use 3 MPI processes to compute watersheds given tiled flow direction folder
 		)" << endl;
 		return 0;
@@ -116,6 +116,8 @@ int main(int argc, char* argv[])
 
 			path dirTileFolder = argv[3];
 			path wsTileFolder = argv[4];
+			std::string retentionStr = (argc >= 6) ? argv[5] : "@evict";
+			Retention retention = parseRetention(retentionStr);
 			if (!exists(dirTileFolder)) {
 				std::cout << "Input tiled flow dir folder does not exist:" << dirTileFolder << std::endl;
 				return 0;
@@ -126,11 +128,15 @@ int main(int argc, char* argv[])
 				remove_all(wsTileFolder);
 			create_directories(wsTileFolder);
 
+			TimeSpan span;
 			std::map<Cell, int> globalOutlets = loadOutletLocations(dirTileFolder / "outlets.txt");
 
 			omp_set_num_threads(threadNumber);
 			std::cout << "Thread Number:" << threadNumber << std::endl;
-			tiled_ws_openmp(dirTileFolder, wsTileFolder, globalOutlets);
+			tiled_ws_openmp(dirTileFolder, wsTileFolder, globalOutlets, retention);
+
+			int time = span.elapsed_millseconds();
+			cout << "Flow direction "<< "time in milliseconds using " << ":" << time << endl;
 		}
 		else if (method == "MPI") {
 			mpi_main(argc, argv);

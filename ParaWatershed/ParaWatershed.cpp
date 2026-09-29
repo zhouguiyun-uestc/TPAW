@@ -1,4 +1,4 @@
-#include "ParaWatershed.h"
+﻿#include "ParaWatershed.h"
 #include "SolveLocal.h"
 #include "SolveGlobal.h"
 #include <Grid/io_gdal.h>
@@ -30,12 +30,13 @@ std::map<Cell, int> getGlobalOutlet(const std::filesystem::path& flowDirPath)
 	return outlets;
 }
 
-void tiled_ws_serial(const path& dirFileFolder, const path& wsOutputFolder, const std::map<Cell, int>& outlets)
+void tiled_ws_serial(const path& dirFileFolder, const path& wsOutputFolder, const std::map<Cell, int>& outlets, Retention retention)
 {
 	GridInfo gridInfo;
 	//read gridInfo
 	gridInfo.read(dirFileFolder / "gridInfo.txt");
 	std::vector<path> allTileFiles=readAllTileFiles(dirFileFolder / "tiles.txt");
+	TileFlowStore store(retention);
 
 	Grid<LocalSolution> gridLocalSolutions(gridInfo.gridHeight, gridInfo.gridWidth);
 	gridLocalSolutions.allocate();
@@ -65,6 +66,7 @@ void tiled_ws_serial(const path& dirFileFolder, const path& wsOutputFolder, cons
 			auto solu = solveLocal.solve(dirGrid, wsGrid);
 			solu.interiorLocalOutlets = std::move(interiorLocalOutlets);
 			gridLocalSolutions(gridCell) = std::move(solu);
+			store.put(gridCell, std::move(dirGrid));
 	}
 
 	SolveGlobal globalSolution;
@@ -78,7 +80,7 @@ void tiled_ws_serial(const path& dirFileFolder, const path& wsOutputFolder, cons
 		path tilePath = dirFileFolder / (gridCell.to_string() + ".tif");
 		if (!exists(tilePath)) continue;
 
-		Grid<FlowDir> dirGrid = readRaster<FlowDir>(tilePath);
+		Grid<FlowDir> dirGrid = store.get(gridCell, tilePath);
 		Grid<int> wsGrid(dirGrid);
 		wsGrid.allocate();
 
@@ -88,13 +90,15 @@ void tiled_ws_serial(const path& dirFileFolder, const path& wsOutputFolder, cons
 		writeRaster(wsGrid, wsOutputFolder / (gridCell.to_string() + ".tif"));
 	}
 }
-void tiled_ws_openmp(const path& dirFileFolder, const path& wsOutputFolder, const std::map<Cell, int>& outlets)
+void tiled_ws_openmp(const path& dirFileFolder, const path& wsOutputFolder, const std::map<Cell, int>& outlets, Retention retention)
 {
+	initializeGDALForOpenMP();
+
 	GridInfo gridInfo;
 	//read gridInfo
 	gridInfo.read(dirFileFolder / "gridInfo.txt");
 	std::vector<path> allTileFiles = readAllTileFiles(dirFileFolder / "tiles.txt");
-
+	TileFlowStore store(retention);
 
 	Grid<LocalSolution> gridLocalSolutions(gridInfo.gridHeight, gridInfo.gridWidth);
 	gridLocalSolutions.allocate();
@@ -104,10 +108,6 @@ void tiled_ws_openmp(const path& dirFileFolder, const path& wsOutputFolder, cons
 	//#pragma omp parallel for
 	#pragma omp parallel
 	{
-		TimeSpan ioSpan;
-		TimeSpan computeSpan;
-
-		computeSpan.reset();
 		#pragma omp for nowait
 		for (int i = 0; i < allTileFiles.size(); i++)
 		{
@@ -116,12 +116,7 @@ void tiled_ws_openmp(const path& dirFileFolder, const path& wsOutputFolder, cons
 			if (!exists(tilePath)) continue;
 
 			Grid<FlowDir> dirGrid;
-			ioSpan.reset();
-			#pragma omp critical(read)
-			{
-				dirGrid = readRaster<FlowDir>(tilePath);
-			}
-			ioSpan.elapsed_millseconds();
+			dirGrid = readRasterOpenMP<FlowDir>(tilePath);
 
 			//set global outlet
 			Grid<int> wsGrid(dirGrid);
@@ -141,25 +136,14 @@ void tiled_ws_openmp(const path& dirFileFolder, const path& wsOutputFolder, cons
 			auto solu = solveLocal.solve(dirGrid, wsGrid);
 			solu.interiorLocalOutlets = std::move(interiorLocalOutlets);
 			gridLocalSolutions(gridCell) = std::move(solu);
-		}
-		computeSpan.elapsed_millseconds();
-		computeSpan.total -= ioSpan.total;
-
-		#pragma omp critical
-		{
-			if (computeSpan.total > step1_compute_max_time)
-				step1_compute_max_time = computeSpan.total;
+			store.put(gridCell, std::move(dirGrid));
 		}
 	}
 	
-	TimeSpan globalcomputeSpan;
-
-	globalcomputeSpan.reset();
 	SolveGlobal globalSolution;
 	globalSolution.gridInfo = gridInfo;
 	globalSolution.gridLocalSolutions = std::move(gridLocalSolutions);
 	globalSolution.solve();
-	globalcomputeSpan.elapsed_millseconds();
 
 	//for (int r = 0; r < gridInfo.gridHeight; r++)
 	//	for (int c = 0; c < gridInfo.gridWidth; c++)
@@ -168,10 +152,6 @@ void tiled_ws_openmp(const path& dirFileFolder, const path& wsOutputFolder, cons
 
 	#pragma omp parallel
 	{
-		TimeSpan ioSpan;
-		TimeSpan computeSpan;
-
-		computeSpan.reset();
 		#pragma omp for nowait
 		for (int i = 0; i < allTileFiles.size(); i++)
 		{
@@ -180,12 +160,7 @@ void tiled_ws_openmp(const path& dirFileFolder, const path& wsOutputFolder, cons
 			if (!exists(tilePath)) continue;
 
 			Grid<FlowDir> dirGrid;
-			ioSpan.reset();
-			#pragma omp critical(read)
-			{
-				dirGrid = readRaster<FlowDir>(tilePath);
-			}
-			ioSpan.elapsed_millseconds();
+			dirGrid = store.getOpenMP(gridCell, tilePath);
 
 			Grid<int> wsGrid(dirGrid);
 			wsGrid.allocate();
@@ -194,25 +169,9 @@ void tiled_ws_openmp(const path& dirFileFolder, const path& wsOutputFolder, cons
 			localSolution.updateBorderCellLabel(globalSolution.gridLocalSolutions(gridCell), globalSolution.gridLocalSolutions(gridCell).interiorLocalOutlets, wsGrid);
 			localSolution.finalize(dirGrid, wsGrid);
 
-			ioSpan.reset();
-			#pragma omp critical(write)
-			{
-				writeRaster(wsGrid, wsOutputFolder / (gridCell.to_string() + ".tif"));
-			}
-			ioSpan.elapsed_millseconds();
-		}
-		computeSpan.elapsed_millseconds();
-		computeSpan.total -= ioSpan.total;
-
-		#pragma omp critical
-		{
-			if (computeSpan.total > step2_compute_max_time)
-				step2_compute_max_time = computeSpan.total;
+			writeRasterOpenMP(wsGrid, wsOutputFolder / (gridCell.to_string() + ".tif"));
 		}
 	}
-
-	double total_compute_max_time = step1_compute_max_time + step2_compute_max_time + globalcomputeSpan.total;
-	std::cout << "Compute max Time: " << total_compute_max_time << endl;
 }
 
 

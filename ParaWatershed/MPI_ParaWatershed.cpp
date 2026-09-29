@@ -1,4 +1,4 @@
-#include "MPI_ParaWatershed.h"
+﻿#include "MPI_ParaWatershed.h"
 #include "MPI_Communicate.h"
 #include "SolveLocal.h"
 #include "SolveGlobal.h"
@@ -89,7 +89,8 @@ void computeProcess(
 	const std::filesystem::path& wsTileFolder, 
 	std::vector<std::filesystem::path>& allTileFiles, 
 	GridInfo& gridInfo,
-	std::map<Cell, int>& globalOutlets)
+	std::map<Cell, int>& globalOutlets,
+	Retention retention)
 {
 	//determine tiles to be processed by this process
 	int computeProcessCount = totalProcessCount - 1;
@@ -104,6 +105,7 @@ void computeProcess(
 	TimeSpan commSpan;
 	std::cout << "tile number processed by rank " << rank <<": " <<tileIndices.size()<< endl;
 	std::map<Cell,std::map <Cell, int>> mapInterialLocalOutlets;
+	TileFlowStore store(retention);
 	//compute initial local solutions
 	for (auto i : tileIndices) {
 		//cout << allTileFiles[i] << endl;
@@ -149,6 +151,8 @@ void computeProcess(
 		solu.gridCell = gridCell;
 		solu.rank = rank;
 		
+		store.put(gridCell, std::move(dirGrid));
+
 		//send this local solution to node 0
 		commSpan.reset();
 		send(solu, 0);
@@ -174,7 +178,7 @@ void computeProcess(
 		if (!exists(tilePath)) continue;
 		
 		ioSpan.reset();
-		Grid<FlowDir> dirGrid = readRaster<FlowDir>(tilePath,false);
+		Grid<FlowDir> dirGrid = store.get(gridCell, tilePath);
 		ioSpan.elapsed_millseconds();
 		
 		Grid<int> wsGrid(dirGrid);

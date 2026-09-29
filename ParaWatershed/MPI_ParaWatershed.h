@@ -1,8 +1,9 @@
-#pragma once
+﻿#pragma once
 #include <filesystem>
 #include <map>
 #include <Grid/cell.h>
 #include "grid_info.h"
+#include "retention.h"
 
 
 void  mainProcess(
@@ -13,7 +14,8 @@ void  mainProcess(
 void computeProcess(int rank, int totalProcessCount, const std::filesystem::path& dirTileFolder,
 	const std::filesystem::path& wsTileFolder, std::vector<std::filesystem::path>& allTileFiles, 
 	GridInfo& gridInfo,
-	std::map<Cell, int>& globalOutlets);
+	std::map<Cell, int>& globalOutlets,
+	Retention retention = Retention::Evict);
 
 int mpi_main(int argc, char* argv[]);
 

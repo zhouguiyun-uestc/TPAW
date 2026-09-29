@@ -1,4 +1,4 @@
-#include "tool.h"
+﻿#include "tool.h"
 #include "ParaWatershed/ParaWatershed.h"
 #include <Grid/grid.h>
 #include <Grid/io_gdal.h>
@@ -14,9 +14,10 @@ int mpi_main(int argc, char* argv[])
     if (argc < 3) {
         std::cout << "Too few arguments for MPI program." << std::endl;
         std::cout << "This program delineates watersheds using our proposed parallel MPI algorithm" << std::endl;
-        std::cout << "mpiexec -np <PROCESSES_NUMBER> ParaWatershed MPI <INPUT Tiled Flow Dir Folder> <OUTPUT Tiled Watershed Folder>" << std::endl;
+        std::cout << "mpiexec -np <PROCESSES_NUMBER> ParaWatershed MPI <INPUT Tiled Flow Dir Folder> <OUTPUT Tiled Watershed Folder> retention(optional)" << std::endl;
         std::cout << "This command determines flow directions in the given DEM " << std::endl;
         std::cout << "Example usage: mpiexec -np 3 ParaWatershed MPI ./tiledflowdir ./tiledwatershed" << std::endl;
+        std::cout << "Retention is optional and defaults to @evict(nothing is cached). @retain keeps flow direction tiles in RAM between the two stages." << std::endl;
         return -1;
     }
 
@@ -36,6 +37,9 @@ int mpi_main(int argc, char* argv[])
             std::cout << "Specify at least 2 processes, e.g. 'mpiexec -np 2 ParaWatershed MPI path2DirTileFolder path2WatershedTileFolder'" << std::endl;
             return -1;
         }
+
+        std::string retentionStr = (argc >= 5) ? argv[4] : "@evict";
+        Retention retention = parseRetention(retentionStr);
 
         if (rank == 0) {
 
@@ -86,7 +90,7 @@ int mpi_main(int argc, char* argv[])
             else
             {
                 std::cout << "total number of outlets:" << globalOutlets.size() << std::endl;
-                computeProcess(rank, size, dirTileFolder, wsTileFolder, allTileFiles, gridInfo, globalOutlets);
+                computeProcess(rank, size, dirTileFolder, wsTileFolder, allTileFiles, gridInfo, globalOutlets, retention);
             }
         }
     }
