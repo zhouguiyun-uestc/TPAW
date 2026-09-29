@@ -1,4 +1,4 @@
-# TPAW
+﻿# TPAW
 **Manuscript Title:**
 A scalable tile-based parallel watershed delineation algorithm for massive digital elevation models for distributed-memory architectures
 
@@ -48,16 +48,18 @@ ParaWatershed diff grid1.tif grid2.tif diff.tif
 ```
 **"OpenMP"**: Shared-memory parallel computing using multiple CPU cores.
 ```bash
-ParaWatershed OpenMP 8 pathToInputFlowDirectionFolder pathToOutputWatershedFolder
+ParaWatershed OpenMP 8 pathToInputFlowDirectionFolder pathToOutputWatershedFolder [@evict|@retain](optional)
 ```
 **"MPI"**: Distributed-memory parallel computing for clusters.
 ```bash
-mpiexec -np 3 ParaWatershed MPI pathToInputFlowDirectionFolder pathToOutputWatershedFolder
+mpiexec -np 3 ParaWatershed MPI pathToInputFlowDirectionFolder pathToOutputWatershedFolder [@evict|@retain](optional)
 ```
 ### Important Notice:
 
 By default, the processed grids should contain cells no more than the maximum value hold in an unsigned int32 (which is 4294967295). 
-If larger grids need to processed, please define the macro _MASSIVE_DATASET_ in grid.h to enable correct indexing of the cells. 
+If larger grids need to processed, please define the macro _MASSIVE_DATASET_ in grid.h to enable correct indexing of the cells.
+
+Retention is optional and defaults to @evict(nothing is cached). @retain keeps flow direction tiles in RAM between the two stages.
 
 ### Test Data:
 
