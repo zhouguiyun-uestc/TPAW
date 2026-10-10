@@ -55,7 +55,6 @@ void  mainProcess(
 	double span = 0,io=0,comm=0;
 	double spanMax=0, spanMin=0,io_sum = 0, comm_sum = 0;
 	long vmpeak = 0, vmhwm = 0;
-	ProcessMemUsage(vmpeak, vmhwm);
 	long vmpeakMax = 0, vmhwmMax = 0;
 	span = 0;
 	MPI_Reduce(&span, &spanMax, 1, MPI_DOUBLE, MPI_MAX, 0,MPI_COMM_WORLD);
