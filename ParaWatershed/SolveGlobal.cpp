@@ -37,15 +37,10 @@ void SolveGlobal::solve()
 				else
 					break;
 
-				if (!moveToDownstreamGlobalCell(gridCell, curCell)) {
-					id = BorderCellInfo::UNLABELLED_OUTLET;
-					break;
-				}
-
-			} while (true);
+			} while (moveToDownstreamGlobalCell(gridCell, curCell));
 
 			//
-			if (id == no_data_value) id = BorderCellInfo::UNLABELLED_OUTLET;
+			if (id == no_data_value || id == BorderCellInfo::LABEL_UNKNOWN) id = BorderCellInfo::UNLABELLED_OUTLET;
 
 			if (tracedBorderCells.size() > 0)
 			{
